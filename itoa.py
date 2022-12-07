@@ -9,15 +9,17 @@ import argparse
 
 ################## COMMON TO BOTH AMBA AND IMBA MEMBERS #######################
 class Members(object):
+    """ A generic member class used for both AMBA and IMBA members
+    """
     def __init__(self):
         pass
 
     @property
-    def members(self): # Dict used to store all members { <member_id>: AMBAMember_obj, ... }
+    def members(self): # Dictionary used to store all members { <member_id>: Member, ... }
         return self._members
     
     @property
-    def emails(self): # Dict used to look up members by their email { <email>: <member_id>, ... }
+    def emails(self): # Dictionary used to look up members by their email { <email>: <member_id>, ... }
         return self._emails
    
     def _map_fields(self, entry):
@@ -31,18 +33,18 @@ class Members(object):
                 sys.exit()
         print(" - Required fields in %s have been validated." % (self._members_file))
 
-        # Map expexted fields to their index locations 
-        for i, field in enumerate(entry):
-            self._fields[field.strip()] = i
+        # Map expected fields to their index locations 
+        for index, field in enumerate(entry):
+            self._fields[field.strip()] = index
 
 
 ################## AMBA MEMBERS ###############################################
-class AMBAMembers(Members): # Inherite frrom Members
+class AMBAMembers(Members): # Inherite from Members
     def __init__(self, members_file):
         self._members_file = members_file
-        self._members = dict() # { <member_id>: IMBAMember, ...}
+        self._members = dict() # { <member_id>: IMBAMember, ... }
         self._fields  = dict() # { <field>: <index>, ... }
-        self._emails  = dict() # { <email>: <member_id>, ...}
+        self._emails  = dict() # { <email>: <member_id>, ... }
         
         # Fields we expect to be in the AMBA members file
         self._required_fields = [ 
@@ -85,12 +87,12 @@ class AMBAMembers(Members): # Inherite frrom Members
             data = data[1:]
 
         # Extract each entry and map it's fields to a member object
-        for i, entry in enumerate(data.split("\n")):
+        for index, entry in enumerate(data.split("\n")):
             if len(entry) == 0: # Skip empty entries
                 continue
 
             entry = entry.split(",") # Comma separated fields
-            if i == 0: # First line is used to map fields
+            if index == 0: # First line is used to map fields
                 self._map_fields(entry)
                 continue # Skip to next entry after the fields are mapped
 
@@ -233,9 +235,9 @@ class IMBAMembers(Members): # Inherite frrom Members
         self._members      = dict() # { <member_id>: IMBAMember, ...}
         self._fields       = dict() # { <field>: <index>, ... }
         self._emails       = dict() # { <email>: <member_id>, ...}
-        self._members_ay   = dict() # Auto-renew yearly members
-        self._members_am   = dict() # Auto-renew montthly members
-        self._members_reg  = dict() # Regular members (e.g. no auto-renew)
+        self._members_ay   = dict() # { <member_id>: IMBAMember, ... } Auto-renew yearly members
+        self._members_am   = dict() # { <member_id>: IMBAMember, ... } Auto-renew montthly members
+        self._members_reg  = dict() # { <member_id>: IMBAMember, ... } Regular members (e.g. no auto-renew)
 
         # Fields we expect to be in the IMBA members file
         self._required_fields = [
@@ -407,12 +409,12 @@ class AllMembers(object):
         - Export file with new members
     """
 
-    def __init__(self, amba, imba, directory):
+    def __init__(self, amba_members, imba_members, directory):
         print(" Analizing both sets of members")
 
         self._dir  = directory
-        self._amba = amba
-        self._imba = imba
+        self._amba = amba_members
+        self._imba = imba_members
 
         self._dup_ids = set()  # Duplicate member ids
         self._new_reg = list() # New regular memebers to add (e.g. no auto-renew)
@@ -436,26 +438,25 @@ class AllMembers(object):
 
         # Find duplicates based on first and last name
         for imba_id in self._imba.members:
-            fnamei = self._imba.members[imba_id].first_name.lower()
-            lnamei = self._imba.members[imba_id].last_name.lower()
-            namei = fnamei + lnamei
+            fname_imba = self._imba.members[imba_id].first_name.lower()
+            lname_imba = self._imba.members[imba_id].last_name.lower()
+            name_imba = fname_imba + lname_imba
 
             for amba_id in self._amba.members:
-                fnamea = self._amba.members[amba_id].first_name.lower()
-                lnamea = self._amba.members[amba_id].last_name.lower()
-                namea = fnamea + lnamea
+                fname_amba = self._amba.members[amba_id].first_name.lower()
+                lname_amba = self._amba.members[amba_id].last_name.lower()
+                name_amba = fname_amba + lname_amba
 
-                if namei == namea:
+                if name_imba == name_amba:
                     self._dup_ids.add(imba_id)
                     #print("   + Duplicate name: %s %s" % (self._imba.members[imba_id].first_name, self._imba.members[imba_id].last_name))
 
-        
         # Find duplicates based on email
         for email in self._amba.emails: 
             if email in self._imba.emails:
                 #print("   + Duplicate member email:%s" % email)
-                a = self._amba.members[self._amba.emails[email]]
                 i = self._imba.members[self._imba.emails[email]]
+                #a = self._amba.members[self._amba.emails[email]]
                 #print(self._imba.members[self._imba.emails[email]])
                 #print(self._amba.members[self._amba.emails[email]])
                 #print("     AMBA info: %s %s %s " % (a.first_name, a.last_name, a.membership_id))
@@ -536,9 +537,7 @@ class AllMembers(object):
                 output += "%s/%s/%s," % (month,day,year)
             else:
                 output += member.end_date + ","
-
             output += member.curr_start + ","
-
             output += "\n"
 
         return output
@@ -578,7 +577,9 @@ class AllMembers(object):
             fd.write(output)
 
 
-class Setup(object):
+class InitialSetup(object):
+    """ Setup the directorie for the output and copy the source CSV files there
+    """
     def __init__(self, amba_file, imba_file):
         self._dir = os.path.join(os.getcwd(), time.strftime("%Y_%m_%d"))
         self._amba_file = os.path.join(self._dir, os.path.relpath(amba_file))
@@ -626,22 +627,22 @@ if __name__ == "__main__":
     parser.add_argument('-i', '--imba', dest='imba_file', action='store', required=True,
                        help='IMBA membership file')
 
-    exit=False
     args = parser.parse_args()
+    missing_file=False
     amba_file = os.path.abspath(args.amba_file)
     imba_file = os.path.abspath(args.imba_file)
     
     if not os.path.isfile(amba_file):
         print("Error: AMBA file %s not found." % amba_file)
-        exit=True
+        missing_file=True
     if not os.path.isfile(args.imba_file):
         print("Error: IMBA file %s not found." % imba_file)
-        exit=True
-    if exit:
+        missing_file=True
+    if missing_file:
         sys.exit()
 
-    print(" - Found membership files")
-    setup = Setup(amba_file, imba_file)
+    print(" - Found membership files: %s %s " % (amba_file, imba_file))
+    setup = InitialSetup(amba_file, imba_file)
     setup()
 
     plen = 85
@@ -649,17 +650,19 @@ if __name__ == "__main__":
     print("*"*plen)
     print()
     
-    am = AMBAMembers(setup.amba_file)
+    amba_members = AMBAMembers(setup.amba_file)
     print()
     print("-"*plen)
     print()
     
-    im = IMBAMembers(setup.imba_file)
+    imba_members = IMBAMembers(setup.imba_file)
     print()
     print("-"*plen)
     print()
 
-    AllMembers(amba=am, imba=im, directory=setup.directory)
+    AllMembers(amba_members=amba_members, imba_members=imba_members, directory=setup.directory)
     print()
     print("*"*plen)
     print()
+
+
